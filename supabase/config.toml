@@ -1,1 +1,7 @@
 project_id = "onlnhrjqocphmqhgvape"
+
+[functions.analyze-math]
+verify_jwt = false
+
+[functions.david-chat]
+verify_jwt = false
