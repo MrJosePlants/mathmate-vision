@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
 import { Brain, Sparkles, Loader2 } from "lucide-react";
-import { ImageUpload } from "@/components/ImageUpload";
-import { ScreenCapture } from "@/components/ScreenCapture";
+import { LiveScreenPreview } from "@/components/LiveScreenPreview";
 import { SolutionDisplay } from "@/components/SolutionDisplay";
 import { HistoryPanel } from "@/components/HistoryPanel";
+import { DavidChat } from "@/components/DavidChat";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,14 +21,14 @@ const Index = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const { toast } = useToast();
 
-  const analyzeMathProblem = useCallback(async (imageData: string, type: 'upload' | 'capture') => {
+  const analyzeMathProblem = useCallback(async (imageData: string) => {
     setIsLoading(true);
     setSolution(null);
     setCapturedImage(imageData);
 
     try {
       const { data, error } = await supabase.functions.invoke('analyze-math', {
-        body: { image: imageData, type }
+        body: { image: imageData, type: 'capture' }
       });
 
       if (error) {
@@ -51,8 +51,8 @@ const Index = () => {
       setHistory(prev => [newItem, ...prev].slice(0, 20));
 
       toast({
-        title: "Problem solved!",
-        description: "Check out the step-by-step solution below",
+        title: "Answer found!",
+        description: "Check out the answer below",
       });
     } catch (error: any) {
       console.error("Error analyzing math problem:", error);
@@ -85,9 +85,9 @@ const Index = () => {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse-glow" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '1s' }} />
       
-      <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
+      <div className="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
-        <header className="text-center mb-12 animate-slide-up">
+        <header className="text-center mb-8 animate-slide-up">
           <div className="inline-flex items-center gap-3 mb-4">
             <div className="p-3 rounded-2xl bg-primary/10 glow">
               <Brain className="w-10 h-10 text-primary" />
@@ -97,34 +97,21 @@ const Index = () => {
             </h1>
           </div>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Upload an image or share your screen to get instant step-by-step solutions 
-            to any math problem
+            Share your screen to get instant answers, or chat with David for help
           </p>
         </header>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main input area */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Input methods */}
-            <div className="space-y-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Live Preview */}
+          <div className="lg:col-span-2 space-y-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div>
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-5 h-5 text-primary" />
-                <h2 className="font-display text-xl">Capture Problem</h2>
+                <h2 className="font-display text-xl">Live Screen</h2>
               </div>
               
-              <ImageUpload 
-                onImageSelect={(img) => analyzeMathProblem(img, 'upload')}
-                isLoading={isLoading}
-              />
-              
-              <div className="flex items-center gap-4">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-sm text-muted-foreground font-display">or</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-              
-              <ScreenCapture 
-                onCapture={(img) => analyzeMathProblem(img, 'capture')}
+              <LiveScreenPreview 
+                onCapture={analyzeMathProblem}
                 isLoading={isLoading}
               />
             </div>
@@ -133,10 +120,7 @@ const Index = () => {
             {isLoading && (
               <div className="glass rounded-xl p-8 text-center animate-fade-in">
                 <Loader2 className="w-12 h-12 text-primary mx-auto animate-spin mb-4" />
-                <p className="font-display text-lg">Analyzing your math problem...</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Our AI is working on a step-by-step solution
-                </p>
+                <p className="font-display text-lg">Finding the answer...</p>
               </div>
             )}
 
@@ -151,30 +135,20 @@ const Index = () => {
 
           {/* Sidebar */}
           <div className="space-y-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+            {/* David Chat */}
+            <DavidChat />
+            
+            {/* History */}
             <HistoryPanel 
               history={history}
               onSelect={handleHistorySelect}
               onClear={clearHistory}
             />
-            
-            {/* Tips card */}
-            <div className="glass rounded-xl p-5">
-              <h3 className="font-display text-lg mb-3 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                Tips
-              </h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>• Take clear photos with good lighting</li>
-                <li>• Make sure all numbers are visible</li>
-                <li>• Works with handwritten & printed math</li>
-                <li>• Supports algebra, calculus, geometry & more</li>
-              </ul>
-            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="mt-16 text-center text-sm text-muted-foreground">
+        <footer className="mt-12 text-center text-sm text-muted-foreground">
           <p>Powered by AI • Built for learning</p>
         </footer>
       </div>

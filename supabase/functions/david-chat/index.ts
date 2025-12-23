@@ -11,20 +11,16 @@ serve(async (req) => {
   }
 
   try {
-    const { image, type } = await req.json();
+    const { messages } = await req.json();
     
-    if (!image) {
-      throw new Error('No image data provided');
-    }
-
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Analyzing math problem, type:', type);
+    console.log('David chat - processing message');
 
-    const systemPrompt = `You are an expert math solver. Analyze the math problem shown in the image and provide ONLY the final answer. No explanations, no steps, no tips - just the answer. If there are multiple problems, list each answer on a new line with the problem number. Be direct and concise.`;
+    const systemPrompt = `You are David, a friendly and helpful math tutor. You have a casual, encouraging personality. Keep your responses concise and helpful. When someone asks a math question, give them the direct answer first, then briefly explain if they seem to need help understanding. Use simple language and be supportive. You can help with any math topic from basic arithmetic to advanced calculus.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -36,21 +32,7 @@ serve(async (req) => {
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { 
-            role: "user", 
-            content: [
-              {
-                type: "text",
-                text: "Solve this and give me just the answer."
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: image
-                }
-              }
-            ]
-          }
+          ...messages
         ],
       }),
     });
@@ -76,15 +58,15 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const solution = data.choices?.[0]?.message?.content;
+    const responseText = data.choices?.[0]?.message?.content;
 
-    console.log('Successfully analyzed math problem');
+    console.log('David chat - response generated');
 
-    return new Response(JSON.stringify({ solution }), {
+    return new Response(JSON.stringify({ response: responseText }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
-    console.error("Error in analyze-math function:", error);
+    console.error("Error in david-chat function:", error);
     const message = error instanceof Error ? error.message : "An error occurred";
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
