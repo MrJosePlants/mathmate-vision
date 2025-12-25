@@ -1,11 +1,16 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { Monitor, Camera, StopCircle, Play, Pencil, Eraser } from "lucide-react";
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
+import { Monitor, StopCircle, Play, Pencil, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 interface LiveScreenPreviewProps {
   onCapture: (imageData: string) => void;
   isLoading: boolean;
+  onClearSolution?: () => void;
+}
+
+export interface LiveScreenPreviewRef {
+  captureScreen: () => Promise<void>;
 }
 
 interface Point {
@@ -17,7 +22,7 @@ interface DrawingPath {
   points: Point[];
 }
 
-export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewProps) => {
+export const LiveScreenPreview = forwardRef<LiveScreenPreviewRef, LiveScreenPreviewProps>(({ onCapture, isLoading, onClearSolution }, ref) => {
   const [isSharing, setIsSharing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -134,6 +139,9 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
   const captureScreen = useCallback(async () => {
     if (!videoRef.current || !stream) return;
 
+    // Clear previous solution first
+    onClearSolution?.();
+
     const video = videoRef.current;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -167,7 +175,25 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
       const imageData = canvas.toDataURL("image/png");
       onCapture(imageData);
     }
-  }, [stream, onCapture, paths]);
+  }, [stream, onCapture, paths, onClearSolution]);
+
+  // Expose captureScreen to parent via ref
+  useImperativeHandle(ref, () => ({
+    captureScreen
+  }), [captureScreen]);
+
+  // Spacebar handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && isSharing && !isLoading) {
+        e.preventDefault();
+        captureScreen();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSharing, isLoading, captureScreen]);
 
   const stopSharing = useCallback(() => {
     if (stream) {
@@ -259,14 +285,10 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
                 <Eraser className="w-4 h-4" />
               </Button>
             )}
-            <Button
-              onClick={captureScreen}
-              disabled={isLoading}
-              className="flex-1 gap-2 glow"
-            >
-              <Camera className="w-4 h-4" />
-              Capture
-            </Button>
+            <div className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-muted/50 rounded-md text-sm text-muted-foreground">
+              <kbd className="px-2 py-1 bg-background rounded border text-xs font-mono">Space</kbd>
+              <span>to capture</span>
+            </div>
             <Button
               onClick={stopSharing}
               variant="destructive"
@@ -279,4 +301,6 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
       </div>
     </div>
   );
-};
+});
+
+LiveScreenPreview.displayName = "LiveScreenPreview";
