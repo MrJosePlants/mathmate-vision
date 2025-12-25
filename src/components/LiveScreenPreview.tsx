@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Monitor, Camera, StopCircle, Play, Circle, Eraser } from "lucide-react";
+import { Monitor, Camera, StopCircle, Play, Pencil, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -8,19 +8,21 @@ interface LiveScreenPreviewProps {
   isLoading: boolean;
 }
 
-interface DrawingCircle {
+interface Point {
   x: number;
   y: number;
-  radius: number;
+}
+
+interface DrawingPath {
+  points: Point[];
 }
 
 export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewProps) => {
   const [isSharing, setIsSharing] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
-  const [circles, setCircles] = useState<DrawingCircle[]>([]);
-  const [currentCircle, setCurrentCircle] = useState<DrawingCircle | null>(null);
+  const [paths, setPaths] = useState<DrawingPath[]>([]);
+  const [currentPath, setCurrentPath] = useState<Point[]>([]);
   const [drawMode, setDrawMode] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,23 +50,27 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.strokeStyle = "#00d4ff";
       ctx.lineWidth = 3;
-      ctx.setLineDash([5, 5]);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
 
-      circles.forEach((circle) => {
+      const drawPath = (points: Point[]) => {
+        if (points.length < 2) return;
         ctx.beginPath();
-        ctx.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI);
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
         ctx.stroke();
-      });
+      };
 
-      if (currentCircle) {
-        ctx.beginPath();
-        ctx.arc(currentCircle.x, currentCircle.y, currentCircle.radius, 0, 2 * Math.PI);
-        ctx.stroke();
+      paths.forEach((path) => drawPath(path.points));
+      if (currentPath.length > 1) {
+        drawPath(currentPath);
       }
     };
 
     drawOverlay();
-  }, [circles, currentCircle, isSharing]);
+  }, [paths, currentPath, isSharing]);
 
   const startScreenShare = useCallback(async () => {
     try {
@@ -79,12 +85,12 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
       mediaStream.getVideoTracks()[0].onended = () => {
         setIsSharing(false);
         setStream(null);
-        setCircles([]);
+        setPaths([]);
       };
 
       toast({
         title: "Screen sharing started",
-        description: "Draw circles around problems, then capture",
+        description: "Draw freely to highlight problems, then capture",
       });
     } catch (error) {
       console.error("Error starting screen share:", error);
@@ -103,32 +109,26 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
     
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    setDrawStart({ x, y });
+    setCurrentPath([{ x, y }]);
     setIsDrawing(true);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDrawing || !drawStart) return;
+    if (!isDrawing || !drawMode) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
-    const centerX = (drawStart.x + x) / 2;
-    const centerY = (drawStart.y + y) / 2;
-    const radius = Math.sqrt(Math.pow(x - drawStart.x, 2) + Math.pow(y - drawStart.y, 2)) / 2;
-
-    setCurrentCircle({ x: centerX, y: centerY, radius });
+    setCurrentPath((prev) => [...prev, { x, y }]);
   };
 
   const handleMouseUp = () => {
-    if (currentCircle && currentCircle.radius > 10) {
-      setCircles((prev) => [...prev, currentCircle]);
+    if (currentPath.length > 1) {
+      setPaths((prev) => [...prev, { points: currentPath }]);
     }
     setIsDrawing(false);
-    setDrawStart(null);
-    setCurrentCircle(null);
+    setCurrentPath([]);
   };
 
   const captureScreen = useCallback(async () => {
@@ -143,24 +143,23 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
     if (ctx) {
       ctx.drawImage(video, 0, 0);
       
-      // Draw circles on the captured image
-      if (circles.length > 0) {
+      // Draw paths on the captured image
+      if (paths.length > 0) {
         const scaleX = video.videoWidth / video.offsetWidth;
         const scaleY = video.videoHeight / video.offsetHeight;
         
         ctx.strokeStyle = "#00d4ff";
         ctx.lineWidth = 4;
-        ctx.setLineDash([8, 8]);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         
-        circles.forEach((circle) => {
+        paths.forEach((path) => {
+          if (path.points.length < 2) return;
           ctx.beginPath();
-          ctx.arc(
-            circle.x * scaleX,
-            circle.y * scaleY,
-            circle.radius * Math.max(scaleX, scaleY),
-            0,
-            2 * Math.PI
-          );
+          ctx.moveTo(path.points[0].x * scaleX, path.points[0].y * scaleY);
+          for (let i = 1; i < path.points.length; i++) {
+            ctx.lineTo(path.points[i].x * scaleX, path.points[i].y * scaleY);
+          }
           ctx.stroke();
         });
       }
@@ -168,7 +167,7 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
       const imageData = canvas.toDataURL("image/png");
       onCapture(imageData);
     }
-  }, [stream, onCapture, circles]);
+  }, [stream, onCapture, paths]);
 
   const stopSharing = useCallback(() => {
     if (stream) {
@@ -176,11 +175,12 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
       setStream(null);
     }
     setIsSharing(false);
-    setCircles([]);
+    setPaths([]);
   }, [stream]);
 
-  const clearCircles = () => {
-    setCircles([]);
+  const clearDrawings = () => {
+    setPaths([]);
+    setCurrentPath([]);
   };
 
   return (
@@ -247,14 +247,14 @@ export const LiveScreenPreview = ({ onCapture, isLoading }: LiveScreenPreviewPro
               size="icon"
               title="Toggle draw mode"
             >
-              <Circle className="w-4 h-4" />
+              <Pencil className="w-4 h-4" />
             </Button>
-            {circles.length > 0 && (
+            {paths.length > 0 && (
               <Button
-                onClick={clearCircles}
+                onClick={clearDrawings}
                 variant="outline"
                 size="icon"
-                title="Clear circles"
+                title="Clear drawings"
               >
                 <Eraser className="w-4 h-4" />
               </Button>
