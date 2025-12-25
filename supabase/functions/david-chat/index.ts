@@ -20,7 +20,33 @@ serve(async (req) => {
 
     console.log('David chat - processing message');
 
-    const systemPrompt = `You are David, a friendly and helpful math tutor. You have a casual, encouraging personality. Keep your responses concise and helpful. When someone asks a math question, give them the direct answer first, then briefly explain if they seem to need help understanding. Use simple language and be supportive. You can help with any math topic from basic arithmetic to advanced calculus.`;
+    const systemPrompt = `You are David, a friendly and helpful math tutor. When users send you images of math problems, analyze them carefully and learn from them. You can help solve similar problems and explain approaches. Keep your responses concise. When someone sends an image, acknowledge it and describe what math problem you see. Be supportive and encouraging.`;
+
+    // Transform messages to include images properly for the AI
+    const formattedMessages = messages.map((m: { role: string; content: string; image?: string }) => {
+      if (m.image) {
+        // For messages with images, use the multimodal format
+        return {
+          role: m.role,
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: m.image
+              }
+            },
+            {
+              type: "text",
+              text: m.content || "What math problem is in this image?"
+            }
+          ]
+        };
+      }
+      return {
+        role: m.role,
+        content: m.content
+      };
+    });
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -32,7 +58,7 @@ serve(async (req) => {
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages
+          ...formattedMessages
         ],
       }),
     });

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Bot, User, Loader2, ImagePlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +9,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  image?: string;
 }
 
 export const DavidChat = () => {
@@ -16,12 +17,14 @@ export const DavidChat = () => {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hey! I'm David, your math tutor. Ask me anything about math and I'll help you out!",
+      content: "Hey! I'm David, your math tutor. Send me pictures of math problems and I'll learn from them!",
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -29,17 +32,34 @@ export const DavidChat = () => {
     }
   }, [messages]);
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPendingImage(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && !pendingImage) || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: input.trim() || "Check this problem",
+      image: pendingImage || undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setPendingImage(null);
     setIsLoading(true);
 
     try {
@@ -48,6 +68,7 @@ export const DavidChat = () => {
           messages: [...messages, userMessage].map((m) => ({
             role: m.role,
             content: m.content,
+            image: m.image,
           })),
         },
       });
@@ -126,6 +147,13 @@ export const DavidChat = () => {
                     : "bg-secondary/30"
                 }`}
               >
+                {message.image && (
+                  <img
+                    src={message.image}
+                    alt="Uploaded"
+                    className="max-w-full rounded-lg mb-2 max-h-32 object-contain"
+                  />
+                )}
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
               </div>
             </div>
@@ -144,7 +172,40 @@ export const DavidChat = () => {
       </ScrollArea>
 
       <div className="p-4 border-t border-border/50">
+        {pendingImage && (
+          <div className="mb-2 relative inline-block">
+            <img
+              src={pendingImage}
+              alt="Pending upload"
+              className="h-16 rounded-lg object-contain"
+            />
+            <Button
+              variant="destructive"
+              size="icon"
+              className="absolute -top-2 -right-2 w-5 h-5"
+              onClick={() => setPendingImage(null)}
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
         <div className="flex gap-2">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            ref={fileInputRef}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            className="shrink-0"
+          >
+            <ImagePlus className="w-4 h-4" />
+          </Button>
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -155,7 +216,7 @@ export const DavidChat = () => {
           />
           <Button
             onClick={sendMessage}
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && !pendingImage) || isLoading}
             size="icon"
             className="shrink-0"
           >
