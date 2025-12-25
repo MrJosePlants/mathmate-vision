@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Brain, Sparkles, Loader2 } from "lucide-react";
-import { LiveScreenPreview } from "@/components/LiveScreenPreview";
+import { LiveScreenPreview, LiveScreenPreviewRef } from "@/components/LiveScreenPreview";
 import { SolutionDisplay } from "@/components/SolutionDisplay";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { DavidChat } from "@/components/DavidChat";
@@ -19,7 +19,13 @@ const Index = () => {
   const [solution, setSolution] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const livePreviewRef = useRef<LiveScreenPreviewRef>(null);
   const { toast } = useToast();
+
+  const clearSolution = useCallback(() => {
+    setSolution(null);
+    setCapturedImage(null);
+  }, []);
 
   const analyzeMathProblem = useCallback(async (imageData: string) => {
     setIsLoading(true);
@@ -111,8 +117,10 @@ const Index = () => {
               </div>
               
               <LiveScreenPreview 
+                ref={livePreviewRef}
                 onCapture={analyzeMathProblem}
                 isLoading={isLoading}
+                onClearSolution={clearSolution}
               />
             </div>
 
